@@ -1,0 +1,49 @@
+AXIOM — STANDALONE INVESTOR DEMO
+
+Requirements: Node.js 22.12+ and npm.
+
+Start:
+  npm ci
+  npm run dev
+  Open http://127.0.0.1:5173
+
+Production build:
+  npm run build
+  npm run preview
+  Deploy the dist/ directory to any static host. No server, secrets or API required.
+
+Verification:
+  npm test
+  npm run test:e2e
+  Browser tests use installed Google Chrome (Playwright channel: chrome).
+  If Chrome is unavailable, install it or change the channel in playwright.config.ts.
+
+Presentation flow:
+  1. Portfolio: select a position and inspect its canonical contract.
+  2. Click a graph edge or structural check to inspect the constraint and proof scope.
+  3. Explore the difference: toggle the emergency hike in Scenario Lab.
+  4. Select "After the window closes" to see annual-count vs December-window basis.
+  5. Toggle the proposed trade; payouts and cost recompute locally.
+  6. Instrument Master and Data expose source rules and the frozen fixture.
+  The Walkthrough button guides the first four screens.
+
+Data boundaries:
+  The user's axiom_lovable_demo_bundle.zip supplies the 27 contract references,
+  21 Sep 2026 marks, rule summaries, 3 local state spaces and 5 fictional positions.
+  Original data lives in src/data; all computed results live in src/domain/engine.ts.
+  Data page exposes provenance, scope, model assumptions and downloadable fixtures.
+  13 supplied constraints plus the annual-count partition are evaluated across
+  350 representative scenarios. This is verification of the demo model, not proof
+  of complete real-world settlement coverage or production semantic admission.
+  Scenario payouts use an explicit bridge: fixed 4.00% September baseline, exact
+  +/-50 bp representatives for tail buckets, +25 bp emergency before October,
+  post-meeting hikes on Dec 10, no other moves or prior threshold hits, and a
+  December decision. The three families are not merged into a general global basis.
+  Terminal payout and terminal P&L are separately labeled. P&L excludes fees,
+  financing and slippage. Snapshot prices are not inferred probabilities.
+  Fonts are bundled locally. No live feeds, remote runtime dependencies, trading,
+  authentication, automated AI inference or production-backend connection exists.
+
+Repo status:
+  Independent local Git repository; axiom-backend and axiom-research are untouched.
+  No remote or deployment is configured.

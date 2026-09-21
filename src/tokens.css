@@ -1,0 +1,125 @@
+/* ==========================================================================
+   AXIOM DESIGN TOKENS — single source of truth
+   Change a value here and it propagates everywhere. Nothing in styles.css
+   should hard-code a colour, size or duration.
+
+   Elevation follows the dark-mode rule that height reads as LUMINANCE, not
+   shadow: five surfaces, each ~5-6% lighter than the one below it. The ladder
+   is deliberately near-achromatic so the chassis never reads as a colour wash -
+   violet is the only hue in the chrome. Signal
+   colour is reserved — violet means "brand / selected", green means profit,
+   red means loss, amber means attention. Nothing else is coloured.
+   ========================================================================== */
+
+:root {
+  /* --- Surfaces: the elevation ladder ----------------------------------- */
+  --bg-app: #0a0a0c;      /* chassis / page ground        */
+  --bg-chrome: #101013;   /* app bar, tape, footer rails  */
+  --bg-panel: #151518;    /* panel face                   */
+  --bg-raised: #1d1d21;   /* panel headers, thead, tfoot  */
+  --bg-overlay: #27272c;  /* modals, popovers, hover      */
+
+  /* --- Lines ------------------------------------------------------------ */
+  --line: #2c2c32;
+  --line-strong: #3e3e46;
+  --line-focus: #d7d7dd;   /* selection + focus read as a BRIGHT NEUTRAL edge */
+  --hairline-hi: #ffffff0f;
+  --hairline-lo: #ffffff08;
+  --hairline-faint: #ffffff05;
+  --wash-hover: #ffffff0a;
+  --wash-chip: #ffffff06;
+
+  /* --- Text: every tier clears 4.5:1 on --bg-panel and --bg-raised ------- */
+  --text-primary: #f4f4f6;
+  --text-secondary: #d0d0d6;
+  --text-muted: #adadb6;
+  --text-faint: #94949e;
+
+  /* --- Brand: purple. Reserved for identity and the primary action only:
+       the logo, the active nav item, the primary CTA and the status LED.
+       Never on borders, rules, data, body text or surfaces. -------------- */
+  --accent: #7c5cf5;
+  --accent-strong: #7957f4;
+  --accent-soft: #977df7;
+  --accent-fill: #7c5cf51f;
+  --accent-line: #7c5cf566;
+  --accent-ink: #ffffff;   /* text on a solid accent fill */
+
+  /* --- Signal: profit. A true green, kept clear of the slate ground. ---- */
+  --up: #3ee07a;
+  --up-soft: #8eefb4;
+  --up-fill: #3ee07a24;
+  --up-line: #3ee07a59;
+
+  /* --- Signal: loss ----------------------------------------------------- */
+  --down: #ff6257;
+  --down-soft: #ffa39c;
+  --down-fill: #ff625724;
+  --down-line: #ff625759;
+
+  /* --- Signal: attention ------------------------------------------------ */
+  --warn: #ffb340;
+  --warn-soft: #ffd396;
+  --warn-fill: #ffb3401f;
+  --warn-line: #ffb34059;
+
+  /* --- Type ------------------------------------------------------------- */
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --fs-2xs: 10px;   /* mono micro-labels, column heads */
+  --fs-xs: 11px;    /* chips, footnotes                */
+  --fs-sm: 12px;    /* secondary UI text               */
+  --fs-base: 13px;  /* table body                      */
+  --fs-md: 15px;    /* prose                           */
+  --fs-lg: 17px;
+  --fs-xl: 21px;
+  --fs-2xl: 26px;
+  --fs-3xl: 30px;   /* readout numerals                */
+
+  --tracking-label: .11em;  /* uppercase mono labels */
+  --tracking-wide: .06em;
+
+  /* --- Geometry: sharp. This is an instrument, not a card deck. --------- */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  /* --- Motion ----------------------------------------------------------- */
+  --dur-fast: .12s;
+  --dur-base: .2s;
+  --ease: cubic-bezier(.22, .61, .36, 1);
+
+  /* --- Depth ------------------------------------------------------------ */
+  --shadow-panel: 0 2px 10px #00000055;
+  --shadow-pop: 0 12px 40px #000000b0;
+  --shadow-modal: 0 24px 70px #000000cc;
+  --accent-glow: #7c5cf5a0;
+  --accent-halo: #7c5cf533;
+
+  /* --- Layering --------------------------------------------------------- */
+  --z-tape: 11;
+  --z-bar: 12;
+  --z-pop: 20;
+  --z-modal: 50;
+
+  /* --- Legacy aliases: older rules still reference these names ---------- */
+  --chassis: var(--bg-app);
+  --chassis-lip: var(--bg-chrome);
+  --surface: var(--bg-panel);
+  --surface2: var(--bg-raised);
+  --screen-head: var(--bg-raised);
+  --border: var(--line);
+  --rail-lit: var(--line-strong);
+  --t1: var(--text-primary);
+  --t2: var(--text-secondary);
+  --t3: var(--text-muted);
+  --t4: var(--text-faint);
+  --muted: var(--text-muted);
+  --text: var(--text-primary);
+  --teal: var(--accent);
+  --teal-dim: var(--accent-strong);
+  --red: var(--down);
+  --amber: var(--warn);
+  --mono: var(--font-mono);
+}
