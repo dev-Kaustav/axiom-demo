@@ -225,7 +225,10 @@ tfoot th,tfoot td { background: var(--bg-raised); font-weight: 500; position: st
 .graph-viewport { flex: 1; min-height: 0; position: relative; overflow: hidden; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; background-image: radial-gradient(var(--line) .65px,transparent .65px); }
 .graph-stage { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
 .graph-cluster { position: absolute; z-index: 2; background: color-mix(in srgb,var(--bg-panel) 90%,transparent); border: 1px solid var(--line); border-radius: 6px; }
-.graph-lines { position: absolute; pointer-events: none; z-index: 1; }
+/* Unclipped: the layer is sized from the committed arrangement, but a wire
+   follows a container being dragged past those bounds, and an svg root clips
+   its viewport by default -- which cut the wires mid-air during the drag. */
+.graph-lines { position: absolute; pointer-events: none; z-index: 1; overflow: visible; }
 /* Its own compositor layer, so panning a canvas of a thousand paths is a
    transform the GPU applies rather than a repaint of every one of them. */
 .graph-stage { will-change: transform; }
