@@ -1,128 +1,251 @@
-import data from '../data/fed-demo.json';
-import semantics from '../data/semantic-constraints.json';
+// Composition layer. The views import from here and nothing deeper, so the
+// shape of the UI never constrains the shape of the model.
 
-export { data, semantics };
-export type Instrument = typeof data.instruments[number];
-export type Position = typeof data.portfolio.positions[number];
-export const buckets = ['CUT_50_PLUS', 'CUT_25', 'HOLD', 'HIKE_25', 'HIKE_50_PLUS'] as const;
-export type Bucket = typeof buckets[number];
-export type Scenario = {
-  october_change_bucket: Bucket;
-  december_change_bucket: Bucket;
-  emergency_hike_sep17_through_dec_meeting: boolean;
-  post_dec_meeting_hike_units_through_dec31: number;
+import universe from '../data/universe/universe.json';
+import portfolioData from '../data/portfolio.json';
+import { AUTHORED, authoredById, expressionOf, type Authored } from './claims';
+import {
+  ALL_STATES,
+  BASIS_SCENARIOS,
+  BASIS_SUMMARY,
+  DEGENERATE,
+  STATE_COUNT,
+  collapse,
+  payoffOf,
+  type Degenerate,
+  type Scenario,
+} from './basis';
+import {
+  aggregate,
+  compact,
+  costCents,
+  money,
+  payoutCents,
+  pnlVector,
+  portfolioAt,
+  price,
+  type Position,
+} from './exposure';
+import { exactGroupOffsets, rankedOffsets, type OffsetAssessment } from './relations';
+import { ANCHORS, ASSUMPTIONS, describeState, type WorldState } from './world';
+
+export * from './world';
+export * from './claims';
+export * from './basis';
+export * from './exposure';
+export * from './relations';
+
+// ---------------------------------------------------------------- contracts
+
+export type EventRecord = (typeof universe.events)[number];
+export type ContractRecord = (typeof universe.contracts)[number];
+
+export const EVENTS = universe.events as EventRecord[];
+export const CONTRACTS = universe.contracts as ContractRecord[];
+export const ANCHOR_FACTS = universe.anchors;
+export const SNAPSHOT = universe.snapshot;
+export const SCOPE_COUNTS = universe.scope_counts;
+
+const eventById = new Map(EVENTS.map((e) => [e.event_id, e]));
+const contractById = new Map(CONTRACTS.map((c) => [c.contract_id, c]));
+const degenerateById = new Map(DEGENERATE.map((d) => [d.contract_id, d]));
+
+/** Everything the UI needs about one contract, joined in one place. */
+export type ContractView = {
+  contract: ContractRecord;
+  event: EventRecord;
+  authored: Authored;
+  degenerate: Degenerate | undefined;
+  displayName: string;
+  expression: string | null;
 };
-export const bucketLabels: Record<Bucket, string> = { CUT_50_PLUS: '−50 bp representative', CUT_25: '−25 bp', HOLD: 'Hold', HIKE_25: '+25 bp', HIKE_50_PLUS: '+50 bp representative' };
-export const presets = data.scenario_presets.map(s => ({ ...s, state: s.state as Scenario }));
-export const byId = Object.fromEntries(data.instruments.map(i => [i.instrument_id, i]));
-export const familyName = (id: string) => id.includes('path') ? 'FOMC path' : id.includes('count') ? 'Hike count' : 'Rate level';
-export const instrumentName = (id: string) => ({ ins_oct_hike_25: 'October · +25 bp hike', ins_path_hph: 'September–December · Hike / Pause / Hike', ins_another_hike: 'Another Fed rate hike in 2026', ins_eoy_425: 'Year-end upper bound · 4.25%', ins_hit_425: 'Rate reaches 4.25% or higher' }[id] ?? byId[id]?.short_name ?? id);
-export const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
-export const money = (n: number, signed = false) => `${n < 0 ? '−' : signed && n > 0 ? '+' : ''}$${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-export const compact = (n: number) => `${n < 0 ? '−' : n > 0 ? '+' : ''}${(Math.abs(n) / 1000).toFixed(1)}k`;
-export const price = (n: number) => `${Number((n * 100).toFixed(1))}¢`;
-export const percent = (n: number) => `${Number((n * 100).toFixed(1))}%`;
 
-// This bridge creates explicit representative trajectories, not whole bucket payoffs.
-// Emergency action is +25 bp before October; post-meeting hikes occur on Dec 10.
-// Tail buckets use exactly ±50 bp, and all other unmodeled rate moves are absent.
-export function facts(s: Scenario) {
-  if (!buckets.includes(s.october_change_bucket) || !buckets.includes(s.december_change_bucket) ||
-      !Number.isInteger(s.post_dec_meeting_hike_units_through_dec31) || s.post_dec_meeting_hike_units_through_dec31 < 0 || s.post_dec_meeting_hike_units_through_dec31 > 6) throw new Error('Scenario outside the supported demo domain');
-  const change: Record<Bucket, number> = { CUT_50_PLUS: -50, CUT_25: -25, HOLD: 0, HIKE_25: 25, HIKE_50_PLUS: 50 };
-  const oct = change[s.october_change_bucket], dec = change[s.december_change_bucket];
-  const emergency = s.emergency_hike_sep17_through_dec_meeting ? 25 : 0;
-  const start = data.resolved_facts.upper_bound_after_sep_2026_bps;
-  const path = [start, start + emergency, start + emergency + oct, start + emergency + oct + dec];
+/**
+ * Built once per contract and kept.
+ *
+ * The universe is a build-time snapshot and nothing here mutates, but the view
+ * was being rebuilt on every call -- and rendering the expression walks the
+ * whole claim tree to a string. The graph alone asks for this twice per node on
+ * every render, so the join is cached rather than recomputed.
+ */
+const viewById = new Map<string, ContractView>();
+
+export function contractView(contractId: string): ContractView {
+  const cached = viewById.get(contractId);
+  if (cached) return cached;
+
+  const contract = contractById.get(contractId);
+  if (!contract) throw new Error(`unknown contract ${contractId}`);
+  const event = eventById.get(contract.event_id)!;
+  const authored = authoredById.get(contractId)!;
+  const view: ContractView = {
+    contract,
+    event,
+    authored,
+    degenerate: degenerateById.get(contractId),
+    displayName: `${shortEventName(event)} ${authored.shortName}`,
+    expression: authored.claim ? expressionOf(authored.claim) : null,
+  };
+  viewById.set(contractId, view);
+  return view;
+}
+
+export const CONTRACT_VIEWS: ContractView[] = CONTRACTS.map((c) => contractView(c.contract_id));
+
+/** The event title, trimmed to something that fits in a table cell. */
+export function shortEventName(event: EventRecord): string {
+  return event.title
+    .replace(/^What will (the )?/i, '')
+    .replace(/^How many /i, '')
+    .replace(/\?$/, '')
+    .trim();
+}
+
+export const contractName = (contractId: string) => contractView(contractId).displayName;
+
+// ---------------------------------------------------------------- portfolio
+
+export const PORTFOLIO = portfolioData;
+export const POSITIONS = portfolioData.positions as Position[];
+export const PROPOSED_TRADE = portfolioData.proposed_trade as Omit<Position, 'position_id'> & {
+  note: string;
+};
+
+export const tradeAsPosition = (
+  trade: { contract_id: string; side: 'YES' | 'NO'; quantity: number; entry_price_x4: number; entry_price_text: string },
+): Position => ({ position_id: 'proposed', ...trade });
+
+// ---------------------------------------------------------------- exposure
+
+export type ScenarioRow = {
+  scenario: Scenario;
+  index: number;
+  payoutCents: number;
+  costCents: number;
+  pnlCents: number;
+};
+
+/**
+ * Portfolio P&L in every economically distinct scenario.
+ *
+ * Distinct means distinct *for this book*: worlds that pay the held contracts
+ * identically are one row, which is what keeps the table readable without
+ * discarding anything (PRD FR8).
+ */
+export function scenarioRows(positions: Position[]): ScenarioRow[] {
+  const held = [...new Set(positions.map((p) => p.contract_id))];
+  const scenarios = collapse(held);
+  return scenarios.map((scenario) => {
+    const index = scenario.memberIndices[0];
+    const result = portfolioAt(positions, index);
+    return {
+      scenario,
+      index,
+      payoutCents: result.payoutCents,
+      costCents: result.costCents,
+      pnlCents: result.pnlCents,
+    };
+  });
+}
+
+export type ExposureSummary = {
+  positionCount: number;
+  contractCount: number;
+  venues: string[];
+  costCents: number;
+  worst: ScenarioRow;
+  best: ScenarioRow;
+  scenarioCount: number;
+  rawWorldCount: number;
+  /** Held contracts we could not interpret, so coverage is never implied. */
+  unsupportedHoldings: string[];
+};
+
+export function exposureSummary(positions: Position[]): ExposureSummary {
+  const rows = scenarioRows(positions);
+  const sorted = [...rows].sort((a, b) => a.pnlCents - b.pnlCents);
   return {
-    oct, dec, path,
-    terminal: path[3],
-    max: Math.max(...path, path[3] + s.post_dec_meeting_hike_units_through_dec31 * 25),
-    annual: data.resolved_facts.hike_units_2026_through_sep16 + (Math.max(oct, 0) + Math.max(dec, 0) + emergency) / 25 + s.post_dec_meeting_hike_units_through_dec31,
-    another: oct > 0 || dec > 0 || emergency > 0,
-    scheduledPath: oct < 0 || dec < 0 ? 'OTHER' : `H${oct > 0 ? 'H' : 'P'}${dec > 0 ? 'H' : 'P'}`,
+    positionCount: positions.length,
+    contractCount: new Set(positions.map((p) => p.contract_id)).size,
+    venues: [...new Set(positions.map((p) => contractView(p.contract_id).event && SNAPSHOT.venue))],
+    costCents: positions.reduce((t, p) => t + costCents(p), 0),
+    worst: sorted[0],
+    best: sorted[sorted.length - 1],
+    scenarioCount: rows.length,
+    rawWorldCount: STATE_COUNT,
+    unsupportedHoldings: positions
+      .filter((p) => authoredById.get(p.contract_id)?.claim === null)
+      .map((p) => p.contract_id),
   };
 }
 
-export function payoffs(s: Scenario): Record<string, number> {
-  const f = facts(s);
-  const metrics: Record<string, string | number | boolean> = {
-    october_2026_change_bucket: s.october_change_bucket,
-    december_2026_change_bucket: s.december_change_bucket,
-    scheduled_sep_oct_dec_path: f.scheduledPath,
-    upper_bound_increase_occurs: f.another,
-    annual_hike_units_25bp_equivalent: f.annual,
-    upper_bound_after_december_2026_fomc_bps: f.terminal,
-    max_upper_bound_before_deadline_bps: f.max,
-  };
-  return Object.fromEntries(data.instruments.map(i => {
-    const p = i.claim.predicate;
-    if (!(p.metric in metrics)) throw new Error(`Unsupported metric: ${p.metric}`);
-    const actual = metrics[p.metric];
-    const truth = p.comparator === 'EQ' ? actual === p.value : p.comparator === 'GTE' && typeof actual === 'number' && typeof p.value === 'number' ? actual >= p.value : undefined;
-    if (truth === undefined) throw new Error(`Unsupported comparator: ${p.comparator}`);
-    return [i.instrument_id, Number(truth)];
-  }));
+/**
+ * How much each free variable matters to this book.
+ *
+ * Measured, not asserted: hold everything else at the scenario's own values,
+ * sweep this variable across its alphabet, and record how far P&L moves. A
+ * variable that never moves P&L is not an exposure the book has.
+ */
+export type Driver = { id: keyof WorldState; label: string; swingCents: number };
+
+const DRIVER_LABELS: Record<keyof WorldState, string> = {
+  october: 'October FOMC decision',
+  december: 'December FOMC decision',
+  interSepOct: 'Inter-meeting move before October',
+  interOctDec: 'Inter-meeting move, October to December',
+  postDec: 'Move after the December meeting',
+};
+
+export function drivers(positions: Position[]): Driver[] {
+  const vector = pnlVector(positions, STATE_COUNT);
+  const ids = Object.keys(DRIVER_LABELS) as (keyof WorldState)[];
+
+  return ids
+    .map((id) => {
+      // Group worlds by everything except this variable; the spread inside a
+      // group is what this variable alone is worth.
+      const groups = new Map<string, number[]>();
+      for (let i = 0; i < STATE_COUNT; i += 1) {
+        const s = ALL_STATES[i];
+        const key = ids
+          .filter((other) => other !== id)
+          .map((other) => s[other])
+          .join('|');
+        const bucket = groups.get(key);
+        if (bucket) bucket.push(vector[i]);
+        else groups.set(key, [vector[i]]);
+      }
+      let swing = 0;
+      for (const values of groups.values()) {
+        swing = Math.max(swing, Math.max(...values) - Math.min(...values));
+      }
+      return { id, label: DRIVER_LABELS[id], swingCents: swing };
+    })
+    .sort((a, b) => b.swingCents - a.swingCents);
 }
 
-export function positionResult(p: Position, truth: Record<string, number>) {
-  const payoutPerUnit = p.side === 'YES' ? truth[p.instrument_id] : 1 - truth[p.instrument_id];
-  const cost = Math.round(p.quantity * p.entry_price * 100) / 100;
-  const payout = p.quantity * payoutPerUnit;
-  return { cost, payout, pnl: Math.round((payout - cost) * 100) / 100, payoutPerUnit };
-}
-export function portfolio(s: Scenario, positions = data.portfolio.positions) {
-  const truth = payoffs(s);
-  const rows = positions.map(p => ({ ...p, ...positionResult(p, truth) }));
-  return { rows, truth, cost: sum(rows.map(r => r.cost)), payout: sum(rows.map(r => r.payout)), pnl: sum(rows.map(r => r.pnl)) };
-}
-export const sideMark = (p: Position) => p.side === 'YES' ? byId[p.instrument_id].snapshot_mark : 1 - byId[p.instrument_id].snapshot_mark;
-export const markPnl = (p: Position) => Math.round(p.quantity * (sideMark(p) - p.entry_price) * 100) / 100;
+// ---------------------------------------------------------------- re-exports
 
-export type Relationship = {
-  id: string; label: string; expression: string; ids: string[]; domain: string; basis: string;
-  description: string; consequence?: string; counterexample?: string;
+export {
+  ALL_STATES,
+  ANCHORS,
+  ASSUMPTIONS,
+  AUTHORED,
+  BASIS_SCENARIOS,
+  BASIS_SUMMARY,
+  DEGENERATE,
+  STATE_COUNT,
+  aggregate,
+  compact,
+  costCents,
+  describeState,
+  exactGroupOffsets,
+  expressionOf,
+  money,
+  payoffOf,
+  payoutCents,
+  portfolioAt,
+  price,
+  rankedOffsets,
 };
-const explanations: Record<string, string> = {
-  con_another_hike_from_paths: 'Each of these three mutually exclusive scheduled paths contains a hike. Their combined payout can never exceed Another Hike. An emergency hike or a hike followed by a cut can make the inequality strict.',
-  con_oct_partition: 'The five October action buckets are mutually exclusive and exhaustive. Exactly one pays $1 in every local state.',
-  con_dec_partition: 'Exactly one December action bucket pays $1 in every local state.',
-  con_path_partition: 'The four hike/pause paths plus Other cover every scheduled outcome. Any cut maps to Other; emergency moves do not change the scheduled path.',
-};
-export const relationships: Relationship[] = semantics.constraints.map(c => ({
-  id: c.constraint_id, label: c.relation_label, expression: c.expression, ids: c.instrument_ids,
-  domain: c.evaluation_domain, basis: c.proof?.state_space_id ?? (c.constraint_id.includes('hit') && !c.constraint_id.includes('another') ? 'sts_rate_level_2026' : 'demo_cross_window_bridge_v1'),
-  description: c.explanation ?? explanations[c.constraint_id] ?? 'A scheduled hike is sufficient for Another Hike to resolve YES. The reverse does not hold: another qualifying meeting or an emergency action may trigger the broader contract.',
-  consequence: c.expectation_consequence,
-  counterexample: c.counterexample?.description,
-}));
-relationships.push({ id: 'con_count_partition', label: 'PARTITION', expression: 'COUNT_1 + COUNT_2 + COUNT_3 + COUNT_4 + COUNT_5_PLUS = 1', ids: data.instruments.filter(i => i.instrument_id.startsWith('ins_hike_count')).map(i => i.instrument_id), domain: 'PAYOFF_STATE', basis: 'sts_hike_count_2026', description: 'One hike unit is fixed in the baseline. The remaining buckets partition all possible annual totals, with five or more collected in the final bucket.' });
-export const relationById = Object.fromEntries(relationships.map(r => [r.id, r]));
-export const related = (id: string) => relationships.filter(r => r.ids.includes(id));
-export function relationshipHolds(r: Relationship, values: Record<string, number>) {
-  const v = r.ids.map(id => values[id]);
-  if (r.label === 'PARTITION') return sum(v) === 1;
-  if (r.label === 'EXPECTATION_BOUND') return v[0] >= sum(v.slice(1));
-  return v[0] <= (r.id === 'con_another_hike_implies_not_count1' ? 1 - v[1] : v[1]);
-}
-export const modeledStates: Scenario[] = buckets.flatMap(oct => buckets.flatMap(dec => [false, true].flatMap(emergency => Array.from({ length: 7 }, (_, post) => ({ october_change_bucket: oct, december_change_bucket: dec, emergency_hike_sep17_through_dec_meeting: emergency, post_dec_meeting_hike_units_through_dec31: post })))));
-export const modelProofs = Object.fromEntries(relationships.map(r => [r.id, modeledStates.every(s => relationshipHolds(r, payoffs(s)))]));
-export function structuralChecks() {
-  const m = (id: string) => byId[id].snapshot_mark;
-  const group = (prefix: string) => sum(data.instruments.filter(i => i.instrument_id.startsWith(prefix)).map(i => i.snapshot_mark));
-  return [
-    { id: 'con_another_hike_from_paths', title: 'Scheduled path → Another hike', kind: 'BOUND SLACK', lhs: m('ins_another_hike'), rhs: sum(['hhh', 'hph', 'hhp'].map(k => m(`ins_path_${k}`))) },
-    { id: 'con_eoy_high_implies_another_hike', title: 'Terminal rate → Another hike', kind: 'BOUND SLACK', lhs: m('ins_another_hike'), rhs: m('ins_eoy_425') + m('ins_eoy_ge450') },
-    { id: 'con_path_partition', title: 'Sep–Dec path partition', kind: 'STRUCTURAL RESIDUAL', lhs: group('ins_path_'), rhs: 1 },
-    { id: 'con_count_partition', title: 'Annual hike-count partition', kind: 'STRUCTURAL RESIDUAL', lhs: group('ins_hike_count_'), rhs: 1 },
-    { id: 'con_hit450_implies_hit425', title: 'Hit ≥4.50% → Hit ≥4.25%', kind: 'BOUND SLACK', lhs: m('ins_hit_425'), rhs: m('ins_hit_450') },
-  ].map(c => ({ ...c, delta: Math.round((c.lhs - c.rhs) * 1000) / 10 }));
-}
-export function windowLabel(i: Instrument) {
-  if (i.instrument_id.startsWith('ins_oct')) return '28 Oct 2026';
-  if (i.instrument_id.startsWith('ins_hike_count')) return '31 Dec · 23:59 ET';
-  if (i.instrument_id.startsWith('ins_hit')) return '31 Dec · 12:59 ET';
-  return '09 Dec · after meeting';
-}
-export const emergencyLabel = (i: Instrument) => i.instrument_id.startsWith('ins_path') || i.instrument_id.startsWith('ins_oct') || i.instrument_id.startsWith('ins_dec') ? 'Scheduled meetings only' : i.instrument_id.startsWith('ins_eoy') ? 'Reflected in terminal level' : 'Included within window';
-export const expressionFor = (id: string) => semantics.state_spaces.map(s => (s.payoffs as Partial<Record<string, string>>)[id]).find(Boolean) ?? '';
+export type { OffsetAssessment, Position, Scenario };

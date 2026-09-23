@@ -1,63 +1,131 @@
-import { useState } from 'react';
-import { Search, ChevronRight, ChevronDown, Play, SlidersHorizontal, X, ArrowRight, Database, ShieldCheck, Layers3, Command, ArrowUpRight } from 'lucide-react';
-import { Panel, Badge, Modal, SourceLink } from './components/primitives';
-import { PortfolioWorkspace } from './components/PortfolioWorkspace';
-import { InstrumentInspector, RelationshipInspector } from './components/Inspectors';
-import { RelationshipGraph } from './components/RelationshipGraph';
-import { ScenarioLab } from './components/ScenarioLab';
-import { InstrumentMaster } from './components/InstrumentMaster';
-import { Ticker, Clock } from './components/Ticker';
-import { data, semantics, presets, relationships, instrumentName, modeledStates, modelProofs } from './domain/engine';
-import type { Scenario } from './domain/engine';
+import { useEffect, useState } from 'react';
+import { Activity, Layers3, GitBranch, FlaskConical, ArrowLeftRight, BookOpen, Database } from 'lucide-react';
 import './styles.css';
+import { Modal } from './components/primitives';
+import { PortfolioView } from './components/PortfolioView';
+import { ExposureView } from './components/ExposureView';
+import { ScenarioExplorer } from './components/ScenarioExplorer';
+import { RelationshipsView } from './components/RelationshipsView';
+import { TradeSimulator } from './components/TradeSimulator';
+import { ContractsView, DataView } from './components/ContractsView';
+import { ContractInspector } from './components/ContractInspector';
+import { Ticker, Clock } from './components/Ticker';
+import { PORTFOLIO, POSITIONS, contractView } from './domain/engine';
 
-const pages = ['Portfolio', 'Instruments', 'Relationships', 'Scenario', 'Data'] as const;
-type Page = typeof pages[number];
-const pageInfo: Record<Page, [string, string]> = {
-  Portfolio: ['Portfolio exposure', 'Every position, understood in context.'],
-  Instruments: ['Instrument master', 'Venue contracts. Canonical meaning. Traceable rules.'],
-  Relationships: ['The structure beneath the market', 'Payoff logic proves the connections.'],
-  Scenario: ['Scenario Lab', 'Change the world. See what your portfolio pays.'],
-  Data: ['A transparent foundation', 'Inspect the snapshot, source rules and model boundaries.'],
+const PAGES = ['Exposure', 'Portfolio', 'Scenarios', 'Relationships', 'Trade', 'Contracts', 'Data'] as const;
+type Page = (typeof PAGES)[number];
+const ICONS = [Activity, Layers3, FlaskConical, GitBranch, ArrowLeftRight, BookOpen, Database];
+const currentPage = () => PAGES.find(p => `#/${p.toLowerCase()}` === window.location.hash) ?? 'Exposure';
+
+const HEADINGS: Record<Page, string> = {
+  Exposure: 'What am I exposed to?',
+  Portfolio: 'What has been loaded',
+  Scenarios: 'What happens under this outcome?',
+  Relationships: 'What offsets what, and where does the hedge fail?',
+  Trade: 'What happens if I make this trade?',
+  Contracts: 'Every contract, and what Axiom made of it',
+  Data: 'Where the numbers come from',
 };
-const tourSteps = [
-  { page: 'Portfolio' as Page, title: 'Start with the portfolio.', body: 'Five positions look like five separate bets. The matrix shows their combined terminal P&L across six concrete worlds. Select a position to link it to the graph.' },
-  { page: 'Relationships' as Page, title: 'Inspect what connects them.', body: 'Three scheduled paths imply Another Hike. Click a graph edge to see the payoff constraint, its proof scope and the snapshot bound.' },
-  { page: 'Scenario' as Page, title: 'Find the settlement difference.', body: 'An emergency hike leaves the scheduled path at Hike / Pause / Pause while flipping Another Hike to YES. Toggle the move and watch the payouts change.' },
-  { page: 'Instruments' as Page, title: 'Follow every claim to its source.', body: 'Open a contract to walk from venue rules to canonical claim, payoff expression and structural relationships. This is the intelligence behind the workspace.' },
-];
+
 export default function App() {
-  const [page, setPage] = useState<Page>('Portfolio');
-  const [selected, setSelected] = useState('ins_another_hike');
-  const [inspector, setInspector] = useState<{ type: 'instrument' | 'relationship'; id: string } | null>(null);
-  const [relationship, setRelationship] = useState('con_another_hike_from_paths');
-  const [state, setState] = useState<Scenario>(presets[0].state);
-  const [query, setQuery] = useState('');
-  const [search, setSearch] = useState('');
-  const [settings, setSettings] = useState(false);
-  const [graphVisible, setGraphVisible] = useState(true), [checksVisible, setChecksVisible] = useState(true);
-  const [tour, setTour] = useState<number | null>(null);
-  const openInstrument = (id: string) => { setSelected(id); setInspector({ type: 'instrument', id }); };
-  const openRelationship = (id: string) => { setRelationship(id); setInspector({ type: 'relationship', id }); };
-  const scenario = (idx: number) => { setState(presets[idx].state); setPage('Scenario'); setInspector(null); };
-  const counterexample = () => { setState({ ...presets[3].state, post_dec_meeting_hike_units_through_dec31: 1 }); setPage('Scenario'); setInspector(null); };
-  const advanceTour = (idx: number) => { setTour(idx); setPage(tourSteps[idx].page); if (idx === 2) setState(presets[4].state); };
-  const matching = data.instruments.filter(i => `${instrumentName(i.instrument_id)} ${i.canonical_question}`.toLowerCase().includes(search.toLowerCase())).slice(0, 6);
-  return <div className="app"><header className="app-bar"><button className="brand" onClick={() => setPage('Portfolio')} aria-label="Axiom home"><svg width="27" height="30" viewBox="0 0 34 34" aria-hidden="true"><path d="M3 28 17 3l14 25h-7L17 15l-7 13zm11-4h6v4h-6z" fill="currentColor"/></svg><span>axiom</span><small>WORKSPACE</small></button><nav aria-label="Main navigation">{pages.map(p => <button key={p} className={page === p ? 'active' : ''} onClick={() => setPage(p)} aria-current={page === p ? 'page' : undefined}>{p}</button>)}</nav><div className="global-search"><label><Search size={14}/><input aria-label="Search all contracts" value={search} onChange={e => setSearch(e.target.value)} placeholder="Find a contract…"/><Command size={12}/></label>{search && <div className="search-results">{matching.length ? matching.map(i => <button key={i.instrument_id} onClick={() => { openInstrument(i.instrument_id); setSearch(''); }}>{instrumentName(i.instrument_id)}<ArrowUpRight size={13}/></button>) : <p>No matching contracts</p>}<button onClick={() => { setQuery(search); setPage('Instruments'); setSearch(''); }}>Search the instrument master <ArrowRight size={13}/></button><button onClick={() => setSearch('')}>Close search <X size={13}/></button></div>}</div><span className="avatar" title="Investor demo workspace">AX</span></header>
-    <Ticker/>
-    <div className="context-bar"><div><span className="dot teal"/><strong>{data.portfolio.name}</strong><ChevronRight size={12}/><span>US monetary policy</span><Badge>DEMO PORTFOLIO</Badge></div><div><span>POLYMARKET <span className="dot muted-dot"/> SNAPSHOT</span><span className="context-separator"/><span className="mono">21 SEP 2026</span><span className="context-separator"/><Clock/></div></div>
-    <main><header className="workspace-header"><div><div className="eyebrow">MACRO WORKSPACE <span>/ FED RATES 2026</span></div><h1>{pageInfo[page][0]}</h1><p>{pageInfo[page][1]}</p></div><div className="workspace-actions"><button className="secondary-button" onClick={() => advanceTour(0)}><Play size={13}/> Walkthrough</button>{page === 'Portfolio' && <button className="secondary-button" onClick={() => setSettings(true)}><SlidersHorizontal size={14}/> Panels <ChevronDown size={12}/></button>}<button className="primary-button" onClick={() => scenario(0)}><FlaskIcon/> Explore a scenario <ArrowUpRight size={14}/></button></div></header>
-      {tour !== null && <div className="tour-banner"><span className="tour-count">0{tour + 1}<small> / 04</small></span><div><strong>{tourSteps[tour].title}</strong><p>{tourSteps[tour].body}</p></div><button className="secondary-button" onClick={() => tour < 3 ? advanceTour(tour + 1) : setTour(null)}>{tour < 3 ? 'Next' : 'Finish'}<ArrowRight size={13}/></button><button className="icon-button" onClick={() => setTour(null)} aria-label="Close walkthrough"><X size={16}/></button></div>}
-      {page === 'Portfolio' && <PortfolioWorkspace selected={selected} onSelect={setSelected} onInstrument={openInstrument} onRelationship={openRelationship} onScenario={scenario} onRelationships={() => setPage('Relationships')} graphVisible={graphVisible} checksVisible={checksVisible}/>}
-      {page === 'Scenario' && <ScenarioLab state={state} setState={setState} onInstrument={openInstrument} onRelationship={openRelationship}/>}
-      {page === 'Instruments' && <InstrumentMaster query={query} setQuery={setQuery} onInstrument={openInstrument}/>}
-      {page === 'Relationships' && <div className="relationships-layout"><div><RelationshipGraph selected={selected} onSelect={id => { setSelected(id); }} onInspect={setRelationship} large/><div className="selected-contract"><span>SELECTED CONTRACT</span><button onClick={() => openInstrument(selected)}>{instrumentName(selected)}<ArrowUpRight size={14}/></button></div><Panel title="Relationship index" eyebrow={`${relationships.length} CONSTRAINTS`}><div className="relation-index">{relationships.map(r => <button key={r.id} className={relationship === r.id ? 'active' : ''} onClick={() => setRelationship(r.id)}><span>{r.label.replaceAll('_', ' ')}</span><code>{r.expression}</code><ChevronRight size={14}/></button>)}</div></Panel></div><section className="panel inline-inspector"><RelationshipInspector id={relationship} onInstrument={openInstrument} onScenario={counterexample}/></section></div>}
-      {page === 'Data' && <div className="data-layout"><Panel title="Snapshot provenance" eyebrow="LOCAL FIXTURE"><div className="data-intro"><Database size={26}/><h2>A frozen market. A working model.</h2><p>Real Polymarket contract references and supplied rule summaries, paired with a fictional portfolio. The snapshot is fixed at 21 September 2026. All scenario totals and structural checks are computed in your browser.</p><div className="data-stats"><div><strong>{data.instruments.length}</strong><span>Contracts</span></div><div><strong>{data.source_events.length}</strong><span>Source events</span></div><div><strong>{semantics.state_spaces.length}</strong><span>Local state spaces</span></div><div><strong>{modeledStates.length}</strong><span>Demo trajectories</span></div></div></div><div className="sources-list">{data.source_events.map(e => <div key={e.event_id}><h3>{e.title}</h3><p>{e.rules_summary}</p><SourceLink url={e.url}/></div>)}</div></Panel><div><Panel title="What is real" eyebrow="DEMO BOUNDARY"><div className="data-boundary"><ShieldCheck size={21}/><h3>Contracts grounded in venue rules</h3><p>The bundle provides event URLs, rule summaries and marks. These are demo interpretations with explicit provenance, not production admission records.</p><Layers3 size={21}/><h3>Exact calculations on an explicit model</h3><p>{Object.values(modelProofs).filter(Boolean).length} constraints pass across {modeledStates.length} representative trajectories. Proof is conditional on this model. Compilation does not independently validate English rules.</p><h3>Illustrative components</h3><p>The portfolio, entries, proposed trade and scenario trajectories are fictional. There is no live feed, order routing, automated AI extraction or production backend connection.</p></div></Panel><Panel title="Scenario assumptions"><div className="data-boundary"><p>September is fixed at 4.00% with one annual hike unit. ±50 bp tail buckets use exactly ±50 bp. The emergency toggle means +25 bp before October; later hike units occur on Dec 10. Other moves, earlier threshold hits and a missing December decision are outside this demo model.</p><p>Year-end contracts observe the December meeting, while annual count and rate-hit contracts have distinct Dec 31 deadlines. This demo does not merge those windows.</p><p>Terminal exposure means payout. Terminal P&L subtracts entry cost; neither is a probability or a fair-value estimate.</p></div></Panel><Panel title="Fixture downloads"><div className="download-list"><DownloadFixture name="Market universe & portfolio" value={data} filename="axiom-fed-snapshot.json"/><DownloadFixture name="Semantic model & constraints" value={semantics} filename="axiom-semantic-constraints.json"/></div></Panel></div></div>}
-    </main><footer className="app-footer"><span><span className="dot teal"/> LOCAL DEMO <span className="footer-separator">/</span> USD</span><p>Hardcoded product demonstration using a frozen market snapshot. Not live market data and not trading advice. Fictional portfolio.</p><span className="mono">AXIOM / 0.1</span></footer>
-    {inspector && <Modal title={inspector.type === 'instrument' ? 'Contract intelligence' : 'Structural relationship'} onClose={() => setInspector(null)} wide>{inspector.type === 'instrument' ? <InstrumentInspector id={inspector.id} onRelationship={openRelationship}/> : <RelationshipInspector id={inspector.id} onInstrument={openInstrument} onScenario={counterexample}/>}</Modal>}
-    {settings && <Modal title="Workspace panels" onClose={() => setSettings(false)}><h2>Make room for your workflow.</h2><p className="muted">Positions and the scenario matrix stay at the center. Choose the supporting panels.</p><label className="switch-label"><span>Structural relationship graph</span><input type="checkbox" role="switch" checked={graphVisible} onChange={e => setGraphVisible(e.target.checked)}/></label><label className="switch-label"><span>Structural checks</span><input type="checkbox" role="switch" checked={checksVisible} onChange={e => setChecksVisible(e.target.checked)}/></label><button className="primary-button" onClick={() => setSettings(false)}>Done <CheckIcon/></button></Modal>}
-  </div>;
+  const [page, setPage] = useState<Page>(currentPage);
+  const [inspecting, setInspecting] = useState<string | null>(null);
+  const [scenarioKey, setScenarioKey] = useState<string | null>(null);
+  const navigate = (next: Page) => { window.location.hash = `/${next.toLowerCase()}`; setPage(next); };
+  useEffect(() => {
+    const sync = () => setPage(currentPage());
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, []);
+  useEffect(() => { document.title = `${page} · Axiom Workstation`; }, [page]);
+  // A trackpad pinch is a ctrl-wheel event, and the browser answers it by
+  // zooming the whole page. This is a fixed desktop layout of panes that carry
+  // their own scroll and their own zoom, so page zoom only breaks it. Capture
+  // phase and non-passive, which is the only way the default can be refused;
+  // the keyboard zoom the browser offers for accessibility is untouched.
+  useEffect(() => {
+    const block = (e: WheelEvent) => { if (e.ctrlKey || e.metaKey) e.preventDefault(); };
+    document.addEventListener('wheel', block, { passive: false, capture: true });
+    return () => document.removeEventListener('wheel', block, { capture: true });
+  }, []);
+
+  const openScenario = (key: string) => {
+    setScenarioKey(key);
+    navigate('Scenarios');
+  };
+
+  return (
+    <div className="app">
+      <header className="app-bar">
+        <div className="brand">
+          <span className="logo-mark" aria-hidden="true" />
+          <span>axiom<span className="brand-period">.</span></span><small>WORKSTATION</small>
+        </div>
+        <nav aria-label="Views" className="page-nav">
+          {PAGES.map((p, index) => {
+            const Icon = ICONS[index];
+            return (
+            <button
+              key={p}
+              type="button"
+              className={p === page ? 'tab active' : 'tab'}
+              aria-current={p === page ? 'page' : undefined}
+              onClick={() => navigate(p)}
+            >
+              <Icon size={14} aria-hidden="true" />{p}
+            </button>
+          ); })}
+        </nav>
+        <Clock />
+      </header>
+
+      <Ticker />
+
+      <main className="workspace">
+        <div className="workspace-header">
+          <div><div className="workspace-kicker">MACRO / US RATES / 2026</div><h1>{page === 'Trade' ? 'Trade simulation' : page === 'Data' ? 'Data & provenance' : page}<span>{HEADINGS[page]}</span></h1></div>
+          <div className="book-label"><span>{PORTFOLIO.name}</span><small><span className="status-dot" /> DEMO BOOK · {POSITIONS.length} POSITIONS</small></div>
+        </div>
+
+        {page === 'Exposure' && <ExposureView positions={POSITIONS} onScenario={openScenario} onContract={setInspecting} />}
+        {page === 'Portfolio' && (
+          <PortfolioView
+            positions={POSITIONS}
+            portfolioName={PORTFOLIO.name}
+            onContract={setInspecting}
+          />
+        )}
+        {page === 'Scenarios' && (
+          <ScenarioExplorer
+            positions={POSITIONS}
+            selectedKey={scenarioKey}
+            onSelect={setScenarioKey}
+            onContract={setInspecting}
+          />
+        )}
+        {page === 'Relationships' && (
+          <RelationshipsView positions={POSITIONS} onContract={setInspecting} onScenario={openScenario} />
+        )}
+        {page === 'Trade' && <TradeSimulator positions={POSITIONS} onContract={setInspecting} />}
+        {page === 'Contracts' && <ContractsView onContract={setInspecting} />}
+        {page === 'Data' && <DataView />}
+      </main>
+
+      <footer className="app-footer">
+        <span><span className="status-dot" /> SNAPSHOT DATA · Fictional portfolio over real Polymarket contracts.</span>
+        <span className="footer-separator">·</span>
+        <span>No probabilities, no fair values, no execution.</span>
+      </footer>
+
+      {inspecting && (
+        <Modal
+          title={contractView(inspecting).contract.question}
+          onClose={() => setInspecting(null)}
+          wide
+        >
+          <ContractInspector contractId={inspecting} />
+        </Modal>
+      )}
+    </div>
+  );
 }
-function FlaskIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M9 3h6m-5 0v7L5 19a1 1 0 0 0 1 2h12a1 1 0 0 0 1-2l-5-9V3M8 16h8"/></svg>; }
-function CheckIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m5 12 4 4 10-10"/></svg>; }
-function DownloadFixture({ name, value, filename }: { name: string; value: unknown; filename: string }) { return <button onClick={() => { const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url); }}>{name}<ArrowUpRight size={15}/></button>; }

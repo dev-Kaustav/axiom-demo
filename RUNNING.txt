@@ -2,48 +2,80 @@ AXIOM — STANDALONE INVESTOR DEMO
 
 Requirements: Node.js 22.12+ and npm.
 
-Start:
-  npm ci
-  npm run dev
-  Open http://127.0.0.1:5173
+Start:      npm ci / npm run dev / http://127.0.0.1:5173
+Production: npm run build / npm run preview / deploy dist/ to any static host.
+            No server, secrets or API required at runtime.
+Verification: npm test / npm run test:e2e
+            Browser tests use installed Google Chrome (Playwright channel: chrome).
+Refresh data: npm run build:universe
+            Re-pulls the pinned Fed events from Polymarket's public Gamma API and
+            rewrites src/data/universe/universe.json. This is the ONLY step that
+            touches the network, and it runs at build time, never at page load.
 
-Production build:
-  npm run build
-  npm run preview
-  Deploy the dist/ directory to any static host. No server, secrets or API required.
-
-Verification:
-  npm test
-  npm run test:e2e
-  Browser tests use installed Google Chrome (Playwright channel: chrome).
-  If Chrome is unavailable, install it or change the channel in playwright.config.ts.
+The five questions:
+  Exposure      What am I exposed to?
+  Portfolio     What has been loaded, and what could not be interpreted.
+  Scenarios     What happens under this outcome? Sortable, with drill-down.
+  Relationships What offsets what, and where does the hedge fail?
+  Trade         What happens if I make this trade?
+  Contracts     Every contract pulled, and the predicate derived from it.
+  Data          Anchors, assumptions, and what is deliberately not modelled.
 
 Presentation flow:
-  1. Portfolio: select a position and inspect its canonical contract.
-  2. Click a graph edge or structural check to inspect the constraint and proof scope.
-  3. Explore the difference: toggle the emergency hike in Scenario Lab.
-  4. Select "After the window closes" to see annual-count vs December-window basis.
-  5. Toggle the proposed trade; payouts and cost recompute locally.
-  6. Instrument Master and Data expose source rules and the frozen fixture.
-  The Walkthrough button guides the first four screens.
+  1. Exposure: 18 positions over 17 contracts reduce to a handful of economic
+     drivers. The October and December decisions dominate; the driver bars are
+     measured, not asserted.
+  2. Scenarios: sort by P&L, open the worst row, read the contributing positions.
+  3. Relationships: the top-ranked pair is long the 4.50% TOUCH contract against
+     short the 4.50% YEAR-END contract. Same level, opposite side, reads as a
+     clean hedge. It holds in 85% of modelled outcomes and fails when the path
+     touches 4.50% and falls back -- "Oct +50 bp / Dec -25 bp". Expand it to see
+     both settlement clauses side by side.
+     Above it, an EXACT offset: the five October brackets pay a combined
+     $100,000 in every one of the 2,187 worlds. They cost $100,900, so that
+     hedge is a guaranteed $900 loss. Nothing probabilistic is involved.
+  4. Any contract name opens the audit trail: venue ids, the settlement rule as
+     published, the derived predicate, and the rule hash.
+  5. Trade: simulate the cheap December cut leg. The headline worst case
+     improves; specific named outcomes get worse by the cost of the premium.
 
 Data boundaries:
-  The user's axiom_lovable_demo_bundle.zip supplies the 27 contract references,
-  21 Sep 2026 marks, rule summaries, 3 local state spaces and 5 fictional positions.
-  Original data lives in src/data; all computed results live in src/domain/engine.ts.
-  Data page exposes provenance, scope, model assumptions and downloadable fixtures.
-  13 supplied constraints plus the annual-count partition are evaluated across
-  350 representative scenarios. This is verification of the demo model, not proof
-  of complete real-world settlement coverage or production semantic admission.
-  Scenario payouts use an explicit bridge: fixed 4.00% September baseline, exact
-  +/-50 bp representatives for tail buckets, +25 bp emergency before October,
-  post-meeting hikes on Dec 10, no other moves or prior threshold hits, and a
-  December decision. The three families are not merged into a general global basis.
-  Terminal payout and terminal P&L are separately labeled. P&L excludes fees,
-  financing and slippage. Snapshot prices are not inferred probabilities.
-  Fonts are bundled locally. No live feeds, remote runtime dependencies, trading,
-  authentication, automated AI inference or production-backend connection exists.
+  The universe is a versioned build-time snapshot of 18 Polymarket events and
+  122 contracts: 10 modelled rate events (89 contracts), 7 Fed-tagged events
+  that are NOT functions of the rate path, and 1 event outside the declared
+  2026 basis. The latter two are carried and labelled, never silently dropped.
+
+  84 contracts carry a machine-readable predicate; 38 are explicitly refused.
+  19 contracts have no reachable alternative outcome, split into two causes that
+  are never merged: 12 the venue has already settled (and the model computes the
+  same answer -- this is asserted by the test suite), and 7 that are unreachable
+  only because of the declared move alphabet. The second group is a limit of
+  this model and is labelled as such, not reported as a certain loss.
+
+  The state space is 2,187 worlds over five free variables: the October and
+  December scheduled decisions (-100..+100 bp in 25 bp steps) and three
+  inter-meeting windows (-25/0/+25 bp). Those collapse to 1,124 economically
+  distinct states, and to 203 that this book distinguishes. Declared assumptions
+  are listed in the Data view and in src/domain/world.ts.
+
+  Facts about 2026 already settled are derived from resolved markets, with the
+  evidence attached: no cut to date, September was a hike, one hike to date, and
+  a lower bound that has already reached 3.50%. The current 4.00% upper bound
+  comes from the Federal Reserve and is labelled as an external source.
+
+  All venue identifiers, including 70-plus digit token ids, are carried as text.
+  The rule hash covers settlement-bearing fields only, so a price move never
+  looks like an amendment. Marks are venue-quoted indicative values and no
+  payout computation reads them.
+
+  Money is integer cents; entry prices are integer ten-thousandths of a dollar.
+  Terminal payout and P&L are labelled separately. Fees, financing and slippage
+  are excluded. No probabilities, fair values, forecasts or execution exist
+  anywhere in this demo -- counts of outcomes are counts, not likelihoods.
 
 Repo status:
-  Independent local Git repository; axiom-backend and axiom-research are untouched.
-  No remote or deployment is configured.
+  Independent local Git repository with an origin remote; axiom-backend and
+  axiom-research are untouched. The Python backend is not called at runtime: its
+  admission gate refuses any basis carrying assumptions, and this one declares
+  several, so the two cannot be wired together until that gate accepts a
+  supported-constraint checker.

@@ -44,6 +44,7 @@
   --accent-fill: #7c5cf51f;
   --accent-line: #7c5cf566;
   --accent-ink: #ffffff;   /* text on a solid accent fill */
+  --accent-cta: #7052ef;   /* solid CTA fill: the one violet dark enough to carry white at 4.5:1 */
 
   /* --- Signal: profit. A true green, kept clear of the slate ground. ---- */
   --up: #3ee07a;

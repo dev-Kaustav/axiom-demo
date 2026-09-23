@@ -1,0 +1,167 @@
+{
+  "schema_version": "axiom-demo-portfolio/2.0",
+  "portfolio_id": "pf_macro_rates_rv",
+  "name": "Macro Rates Relative Value",
+  "fictional": true,
+  "note": "A constructed book, not a real one. Entry prices are anchored to the venue marks captured in the universe snapshot so the scenario numbers stay plausible. Quantities are contracts; each pays $1 if it settles in the holder's favour.",
+  "positions": [
+    {
+      "position_id": "pos_01",
+      "contract_id": "2589813",
+      "side": "YES",
+      "quantity": 100000,
+      "entry_price_x4": 5400,
+      "entry_price_text": "0.54",
+      "note": "One leg of the October partition. Held with pos_02..pos_05 the five cover every October outcome."
+    },
+    {
+      "position_id": "pos_02",
+      "contract_id": "2589812",
+      "side": "YES",
+      "quantity": 100000,
+      "entry_price_x4": 4500,
+      "entry_price_text": "0.45"
+    },
+    {
+      "position_id": "pos_03",
+      "contract_id": "2589811",
+      "side": "YES",
+      "quantity": 100000,
+      "entry_price_x4": 50,
+      "entry_price_text": "0.005"
+    },
+    {
+      "position_id": "pos_04",
+      "contract_id": "2589810",
+      "side": "YES",
+      "quantity": 100000,
+      "entry_price_x4": 40,
+      "entry_price_text": "0.004"
+    },
+    {
+      "position_id": "pos_05",
+      "contract_id": "2589814",
+      "side": "YES",
+      "quantity": 100000,
+      "entry_price_x4": 100,
+      "entry_price_text": "0.01"
+    },
+    {
+      "position_id": "pos_06",
+      "contract_id": "3215008",
+      "side": "YES",
+      "quantity": 100000,
+      "entry_price_x4": 6500,
+      "entry_price_text": "0.65",
+      "note": "Second clip of the December hike, added earlier at a better price. Kept separate so the aggregation is visible."
+    },
+    {
+      "position_id": "pos_07",
+      "contract_id": "690200",
+      "side": "YES",
+      "quantity": 250000,
+      "entry_price_x4": 3100,
+      "entry_price_text": "0.31",
+      "note": "Long the 4.50% touch."
+    },
+    {
+      "position_id": "pos_08",
+      "contract_id": "1168142",
+      "side": "NO",
+      "quantity": 250000,
+      "entry_price_x4": 6900,
+      "entry_price_text": "0.69",
+      "note": "Believed to hedge pos_07: same 4.50% level, opposite side."
+    },
+    {
+      "position_id": "pos_09",
+      "contract_id": "690202",
+      "side": "YES",
+      "quantity": 200000,
+      "entry_price_x4": 8490,
+      "entry_price_text": "0.849"
+    },
+    {
+      "position_id": "pos_10",
+      "contract_id": "1168141",
+      "side": "NO",
+      "quantity": 200000,
+      "entry_price_x4": 4830,
+      "entry_price_text": "0.483"
+    },
+    {
+      "position_id": "pos_11",
+      "contract_id": "3215008",
+      "side": "YES",
+      "quantity": 250000,
+      "entry_price_x4": 6800,
+      "entry_price_text": "0.68"
+    },
+    {
+      "position_id": "pos_12",
+      "contract_id": "4170754",
+      "side": "YES",
+      "quantity": 180000,
+      "entry_price_x4": 3100,
+      "entry_price_text": "0.31"
+    },
+    {
+      "position_id": "pos_13",
+      "contract_id": "2657591",
+      "side": "YES",
+      "quantity": 200000,
+      "entry_price_x4": 2400,
+      "entry_price_text": "0.24"
+    },
+    {
+      "position_id": "pos_14",
+      "contract_id": "4620900",
+      "side": "YES",
+      "quantity": 120000,
+      "entry_price_x4": 8700,
+      "entry_price_text": "0.87"
+    },
+    {
+      "position_id": "pos_15",
+      "contract_id": "2657589",
+      "side": "YES",
+      "quantity": 120000,
+      "entry_price_x4": 1600,
+      "entry_price_text": "0.16",
+      "note": "Believed to hedge pos_14: exactly one hike means no further hike."
+    },
+    {
+      "position_id": "pos_16",
+      "contract_id": "677147",
+      "side": "NO",
+      "quantity": 90000,
+      "entry_price_x4": 9800,
+      "entry_price_text": "0.98"
+    },
+    {
+      "position_id": "pos_17",
+      "contract_id": "1439555",
+      "side": "NO",
+      "quantity": 110000,
+      "entry_price_x4": 9680,
+      "entry_price_text": "0.968"
+    },
+    {
+      "position_id": "pos_18",
+      "contract_id": "616903",
+      "side": "YES",
+      "quantity": 80000,
+      "entry_price_x4": 100,
+      "entry_price_text": "0.01",
+      "note": "Small downside lottery ticket."
+    }
+  ],
+  "proposed_trade": {
+    "contract_id": "3215006",
+    "side": "YES",
+    "quantity": 200000,
+    "entry_price_x4": 200,
+    "entry_price_text": "0.02",
+    "note": "A cheap December cut leg. Pays in the states that currently hurt most."
+  }
+}
